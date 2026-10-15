@@ -21,7 +21,7 @@ uses the same SoC and the same ITE IT8625E Super I/O.
 | SATA ports 0, 1         | enabled |
 | eMMC controller         | enabled (pads native as in vendor firmware) |
 | Serial console          | IT8625E UART at 0x3f8 |
-| HAP (ME disabled after init) | set (PCHSTRP31 bit 16) |
+| HAP (ME disabled after init) | works: PCHSTRP31 bit 16; MEI 00:16.0 gone, cbmem: `HECI: CSE device 16.0 is disabled`, `ME: Version: Unavailable` (coreboot itself does not hide HECI1 in this build) |
 | USB 3, audio, sleep     | untested |
 
 What differs from the X2E N150 (`board/vs-x2e_n150.diff`):
@@ -99,6 +99,17 @@ BIOS).
 - **Updates (Libreboot → Libreboot)**: the descriptor and ME are already in
   place, only the BIOS region changes:
   `sudo flashprog -p internal --ifd -i bios -w bkhd-1264np_seabios.rom`
+
+### Checking ME / HAP on the running board
+
+```
+lspci -nn -s 00:16.0                                   # no output: CSE hidden
+cbmem -1 | grep -iE 'ME:|HECI|CSE'                     # cbmem from coreboot util/cbmem
+```
+
+Note: lbmk sets HAP for `x2e_n150` in PCHSTRP55 bit 16. `ifd.py hybrid`
+replaces all straps with the vendor ones (PCHSTRP55 bit 16 clear) and sets
+PCHSTRP31 bit 16 instead - that is the combination verified above.
 
 ## CI
 
