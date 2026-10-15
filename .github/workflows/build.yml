@@ -66,7 +66,7 @@ jobs:
           git clone -q https://codeberg.org/libreboot/lbmk lbmk
           sudo apt-get update -q
           # lbmk's own list first; the explicit list covers what it might miss
-          (cd lbmk && sudo ./mk dependencies ubuntu) || (cd lbmk && sudo ./mk dependencies debian) || true
+          (cd lbmk && sudo ./mk dependencies ubuntu2404) || (cd lbmk && sudo ./mk dependencies debian) || true
           sudo apt-get install -y -q build-essential git python3 python-is-python3 \
               bison flex m4 gawk libncurses-dev zlib1g-dev libssl-dev uuid-dev \
               nasm acpica-tools wget curl xz-utils bzip2 unzip p7zip-full innoextract \

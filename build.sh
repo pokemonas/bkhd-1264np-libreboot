@@ -78,10 +78,8 @@ echo "coreboot tree: $TREE"
 
 say "fetch coreboot tree"
 if [ ! -d "$ADL" ]; then
-	./mk -f coreboot "$TREE" || true
-fi
-if [ ! -d "$ADL" ]; then
-	# older/newer lbmk without "-f coreboot <tree>": a first build fetches it
+	# lbmk has no separate fetch command: a first build fetches the tree (and
+	# builds the cross compilers), the build with the board files follows
 	./mk -b coreboot "$TARGET"
 fi
 [ -d "$ADL" ] || die "$ADL not found after fetching"
