@@ -60,8 +60,16 @@ fi
 REV=$(git rev-parse --short=8 HEAD)
 echo "lbmk at $REV ($(git log -1 --format=%cs HEAD))"
 
-CFG=config/coreboot/$TARGET/target.cfg
-[ -f "$CFG" ] || die "lbmk $REV has no $TARGET target"
+# lbmk has moved its target configs around between releases: find the one
+# for $TARGET wherever it is
+CFG=$(find config -path "*/$TARGET/target.cfg" 2> /dev/null | head -n 1)
+if [ -z "$CFG" ]; then
+	echo "lbmk layout (config/):" >&2
+	find config -maxdepth 2 -type d | head -n 40 >&2
+	grep -rl "$TARGET" config 2> /dev/null | head -n 20 >&2
+	die "lbmk $REV: no target.cfg for $TARGET"
+fi
+echo "target config: $CFG"
 TREE=$(sed -n 's/^tree="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$CFG" | head -n 1)
 TREE=${TREE:-default}
 SRC=src/coreboot/$TREE
