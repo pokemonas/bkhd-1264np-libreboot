@@ -1,0 +1,111 @@
+name: build
+
+# Builds the BKHD 1264NP-12-4L port with lbmk.
+#  - "tested": the lbmk commit pinned in build.sh. On push to main / manual run
+#    the base ROMs (ME region blank) are attached to a release.
+#  - "latest": lbmk master, weekly - shows early when a new lbmk breaks the
+#    port. Its ROMs are kept as a workflow artifact only.
+# No vendor firmware is involved here: the flashable ROM is made locally with
+# tools/ifd.py hybrid and a dump of the board's own firmware.
+
+on:
+  push:
+    branches: [main]
+    paths: ["board/**", "tools/**", "build.sh", ".github/workflows/**"]
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      lbmk_rev:
+        description: "lbmk commit/tag/branch for an extra build (empty: tested + master)"
+        required: false
+      release:
+        description: "Attach the tested build to a release"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  PAYLOADS: "seabios,grub"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        lbmk: [tested, latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: lbmk revision
+        id: rev
+        env:
+          INPUT_REV: ${{ github.event.inputs.lbmk_rev }}
+        run: |
+          case "${{ matrix.lbmk }}" in
+            tested) REV=$(sed -n 's/^TESTED_REV=//p' build.sh) ;;
+            latest) REV=${INPUT_REV:-master} ;;
+          esac
+          echo "rev=$REV" >> "$GITHUB_OUTPUT"
+          echo "lbmk: $REV"
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache \
+              /usr/local/share/boost /usr/share/swift
+          df -h /
+
+      - name: Dependencies
+        run: |
+          git config --global user.name "lbmk builder"
+          git config --global user.email "lbmk@users.noreply.github.com"
+          git clone -q https://codeberg.org/libreboot/lbmk lbmk
+          sudo apt-get update -q
+          # lbmk's own list first; the explicit list covers what it might miss
+          (cd lbmk && sudo ./mk dependencies ubuntu) || (cd lbmk && sudo ./mk dependencies debian) || true
+          sudo apt-get install -y -q build-essential git python3 python-is-python3 \
+              bison flex m4 gawk libncurses-dev zlib1g-dev libssl-dev uuid-dev \
+              nasm acpica-tools wget curl xz-utils bzip2 unzip p7zip-full innoextract \
+              sharutils cmake pkg-config libfreetype-dev fonts-unifont gettext \
+              autoconf automake autopoint libtool help2man texinfo libelf-dev \
+              liblzma-dev libusb-1.0-0-dev libpci-dev libfuse3-dev libgnutls28-dev \
+              device-tree-compiler swig python3-dev parted || true
+          sudo chown -R "$(id -u):$(id -g)" lbmk
+
+      - name: Build
+        env:
+          LBMK_REV: ${{ steps.rev.outputs.rev }}
+          LBMK_DIR: ${{ github.workspace }}/lbmk
+        run: ./build.sh "$PAYLOADS"
+
+      - name: Checksums
+        run: |
+          cd out
+          sha256sum *.rom > SHA256SUMS
+          cat *.info SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bkhd-1264np-${{ matrix.lbmk }}-${{ steps.rev.outputs.rev }}
+          path: out/
+          retention-days: 30
+
+      - name: Release
+        if: matrix.lbmk == 'tested' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release == 'true'))
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REV: ${{ steps.rev.outputs.rev }}
+        run: |
+          TAG="lbmk-$REV-$(git rev-parse --short=8 HEAD)"
+          gh release delete "$TAG" -y --cleanup-tag 2> /dev/null || true
+          gh release create "$TAG" out/*.rom out/*.info out/SHA256SUMS \
+              --title "BKHD 1264NP-12-4L, lbmk $REV" \
+              --notes "Base ROMs built with lbmk $REV and this port at $(git rev-parse --short=8 HEAD).
+          The ME region is blank: these images are NOT flashable as they are.
+          Make the flashable ROM with a dump of your board's own firmware:
+          \`python3 tools/ifd.py hybrid bkhd-1264np_seabios_base.rom vendor.rom bkhd-1264np_seabios.rom\`
+          See README."

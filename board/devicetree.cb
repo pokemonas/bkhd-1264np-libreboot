@@ -1,0 +1,133 @@
+## SPDX-License-Identifier: GPL-2.0-or-later
+## BKHD 1264NP-12-4L ("melynas") - experimental, based on topton/adl (X2E N150)
+##
+## Vendor firmware PCIe topology (lspci):
+##   RP3  (54ba) -> I226-V
+##   RP4  (54bb) -> I226-V
+##   RP7  (54be) -> I226-V
+##   RP9  (54b0) -> I226 (8086:125f)
+##   RP12 (54b3) -> NVMe (x1)
+## CLKREQ -> clock source wiring is unknown, so all clock sources are left
+## free-running and the root ports do not claim a clock source.
+
+chip soc/intel/alderlake
+
+	register "sagv" = "SaGv_Enabled"
+	register "tcc_offset" = "10"
+
+	register "pmc_gpe0_dw0" = "GPP_B"
+	register "pmc_gpe0_dw1" = "GPP_D"
+	register "pmc_gpe0_dw2" = "GPP_E"
+
+	# ADL-N has 5 PCIe clock sources (0..4); keep them all running
+	register "pcie_clk_config_flag[0]" = "PCIE_CLK_FREE_RUNNING"
+	register "pcie_clk_config_flag[1]" = "PCIE_CLK_FREE_RUNNING"
+	register "pcie_clk_config_flag[2]" = "PCIE_CLK_FREE_RUNNING"
+	register "pcie_clk_config_flag[3]" = "PCIE_CLK_FREE_RUNNING"
+	register "pcie_clk_config_flag[4]" = "PCIE_CLK_FREE_RUNNING"
+
+
+	device domain 0 on
+		device ref igpu on
+			# HDMI on DDI B. The DP connector on TC1 is not supported (TC PHY
+			# never powers up with the public TWL FSP) and is left disabled.
+			register "ddi_portA_config" = "0"
+			register "ddi_portB_config" = "0"
+			register "ddi_ports_config" = "{
+				[DDI_PORT_B] = DDI_ENABLE_HPD | DDI_ENABLE_DDC,
+			}"
+		end
+
+		device ref xhci on
+			register "usb2_ports" = "{
+				[0] = USB2_PORT_MID(OC_SKIP),
+				[1] = USB2_PORT_MID(OC_SKIP),
+				[2] = USB2_PORT_MID(OC_SKIP),
+				[3] = USB2_PORT_MID(OC_SKIP),
+				[4] = USB2_PORT_MID(OC_SKIP),
+				[5] = USB2_PORT_MID(OC_SKIP),
+				[6] = USB2_PORT_MID(OC_SKIP),
+				[7] = USB2_PORT_MID(OC_SKIP),
+			}"
+
+			register "usb3_ports" = "{
+				[0] = USB3_PORT_DEFAULT(OC_SKIP),
+				[1] = USB3_PORT_DEFAULT(OC_SKIP),
+				[2] = USB3_PORT_DEFAULT(OC_SKIP),
+				[3] = USB3_PORT_DEFAULT(OC_SKIP),
+				[4] = USB3_PORT_DEFAULT(OC_SKIP),
+				[5] = USB3_PORT_DEFAULT(OC_SKIP),
+				[6] = USB3_PORT_DEFAULT(OC_SKIP),
+				[7] = USB3_PORT_DEFAULT(OC_SKIP),
+			}"
+		end
+
+
+		device ref shared_sram on end
+
+		device ref sata on
+			register "sata_ports_enable" = "{
+				[0] = 1,
+				[1] = 1,
+			}"
+		end
+
+		# eMMC controller is enabled by vendor firmware (GPP_I7..I18 native)
+		device ref emmc on end
+
+		# Built-in I226 NICs
+		device ref pcie_rp3 on
+			register "pch_pcie_rp[PCH_RP(3)]" = "{
+				.flags = PCIE_RP_CLK_SRC_UNUSED | PCIE_RP_CLK_REQ_UNUSED | PCIE_RP_BUILT_IN,
+			}"
+		end
+
+		device ref pcie_rp4 on
+			register "pch_pcie_rp[PCH_RP(4)]" = "{
+				.flags = PCIE_RP_CLK_SRC_UNUSED | PCIE_RP_CLK_REQ_UNUSED | PCIE_RP_BUILT_IN,
+			}"
+		end
+
+		device ref pcie_rp7 on
+			register "pch_pcie_rp[PCH_RP(7)]" = "{
+				.flags = PCIE_RP_CLK_SRC_UNUSED | PCIE_RP_CLK_REQ_UNUSED | PCIE_RP_BUILT_IN,
+			}"
+		end
+
+		device ref pcie_rp9 on
+			register "pch_pcie_rp[PCH_RP(9)]" = "{
+				.flags = PCIE_RP_CLK_SRC_UNUSED | PCIE_RP_CLK_REQ_UNUSED | PCIE_RP_BUILT_IN,
+			}"
+		end
+
+		# M.2 NVMe (x1)
+		device ref pcie_rp12 on
+			register "pch_pcie_rp[PCH_RP(12)]" = "{
+				.flags = PCIE_RP_CLK_SRC_UNUSED | PCIE_RP_CLK_REQ_UNUSED,
+			}"
+		end
+
+		device ref pch_espi on
+			chip superio/ite/it8625e
+				device pnp 2e.1 on      # serial console
+					io 0x60 = 0x3f8
+					irq 0x70 = 0x4
+					irq 0xf0 = 0x1
+				end
+			end
+		end
+
+		device ref smbus on end
+		device ref fast_spi on end
+
+		device ref hda on
+			register "pch_hda_audio_link_hda_enable"	= "true"
+			register "pch_hda_idisp_codec_enable"		= "true"
+			register "pch_hda_idisp_link_frequency"		= "HDA_LINKFREQ_96MHZ"
+			register "pch_hda_idisp_link_tmode"		= "HDA_TMODE_8T"
+		end
+		chip drivers/crb
+			device mmio 0xfed40000 on end
+		end
+	end
+end
