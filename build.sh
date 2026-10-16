@@ -100,12 +100,21 @@ find elf bin -maxdepth 3 -name "*$TARGET*" -prune -exec rm -rf {} + 2> /dev/null
 git -C "$SRC" checkout -q -- src/mainboard/topton/adl
 
 mkdir -p "$OUT"
+DONE=
 for PAYLOAD in $PAYLOADS; do
+	# lbmk up to ~26.07: one ROM per payload (seabios_x2e_n150_fspgop.rom,
+	# grub_x2e_n150_fspgop_usqwerty.rom ...); newer lbmk: one ROM with all
+	# payloads (edk2_grub_seabios_x2e_n150_fspgop.rom)
 	ROM=
-	for r in bin/$TARGET/${PAYLOAD}_${TARGET}*usqwerty*.rom bin/$TARGET/${PAYLOAD}_${TARGET}*.rom; do
+	for r in bin/$TARGET/${PAYLOAD}_${TARGET}*usqwerty*.rom bin/$TARGET/${PAYLOAD}_${TARGET}*.rom \
+	    bin/$TARGET/*${PAYLOAD}*_${TARGET}*usqwerty*.rom bin/$TARGET/*${PAYLOAD}*_${TARGET}*.rom; do
 		[ -f "$r" ] && { ROM=$r; break; }
 	done
 	[ -n "$ROM" ] || { ls "bin/$TARGET" >&2; die "no $PAYLOAD ROM in bin/$TARGET"; }
+	# name the output after lbmk's payload part (seabios, edk2_grub_seabios ...)
+	PAYLOAD=$(basename "$ROM" | sed "s/_${TARGET}.*//")
+	case " $DONE " in *" $PAYLOAD "*) echo "$ROM already done"; continue ;; esac
+	DONE="$DONE $PAYLOAD"
 	echo "using $ROM"
 
 	BASE=$OUT/bkhd-1264np_${PAYLOAD}_base.rom
