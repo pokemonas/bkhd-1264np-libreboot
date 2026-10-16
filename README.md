@@ -11,18 +11,23 @@ uses the same SoC and the same ITE IT8625E Super I/O.
 
 ## Status
 
+Tested combination (running on the author's board): lbmk `0513e8b5`
+(2026-10-01), **SeaBIOS** payload, vendor straps + vendor ME + HAP, first
+flash with an external programmer, Linux Mint 22.1 (Ubuntu 24.04 base) on top. This is what the CI
+"tested" job builds.
+
 | Part                    | State |
 |-------------------------|-------|
 | RAM init, CPU, boot     | works |
 | HDMI (DDI B)            | works, also in the payload (FSP GOP) |
 | DP (Type-C PHY, TC1)    | **disabled**: the TC PHY never powers up with the public TWL FSP |
 | 4× I226 (RP3, RP4, RP7, RP9) | work |
-| M.2 NVMe (RP12, x1)     | enabled |
+| M.2 NVMe (RP12, x1)     | enabled, untested |
 | SATA ports 0, 1         | enabled |
 | eMMC controller         | enabled (pads native as in vendor firmware) |
-| Serial console          | IT8625E UART at 0x3f8 |
+| Serial console          | RJ45 console port (IT8625E UART, 0x3f8); coreboot default 115200 8N1; pinout presumably Cisco-style as on the X2E – not verified |
 | HAP (ME disabled after init) | works: PCHSTRP31 bit 16; MEI 00:16.0 gone, cbmem: `HECI: CSE device 16.0 is disabled`, `ME: Version: Unavailable` (coreboot itself does not hide HECI1 in this build) |
-| USB 3, audio, sleep     | untested |
+| USB 3, NVMe boot, audio, sleep | untested |
 
 What differs from the X2E N150 (`board/vs-x2e_n150.diff`):
 
@@ -43,11 +48,12 @@ What differs from the X2E N150 (`board/vs-x2e_n150.diff`):
 On Debian/Ubuntu, as a normal user (lbmk refuses root):
 
 ```
-git clone https://github.com/OWNER/bkhd-1264np-libreboot
+git clone https://github.com/pokemonas/bkhd-1264np-libreboot
 cd bkhd-1264np-libreboot
 git config --global user.name  >/dev/null || git config --global user.name  "me"
 git config --global user.email >/dev/null || git config --global user.email "me@localhost"
-git clone https://codeberg.org/libreboot/lbmk && (cd lbmk && sudo ./mk dependencies debian)
+git clone https://codeberg.org/libreboot/lbmk
+(cd lbmk && sudo ./mk dependencies ubuntu2404)   # or: debian, fedora, arch ... (see lbmk config/dependencies)
 
 ./build.sh seabios /path/to/vendor-dump.rom      # -> out/bkhd-1264np_seabios.rom
 ./build.sh seabios,grub /path/to/vendor-dump.rom # several payloads from one build
@@ -63,7 +69,16 @@ tree, copies `board/{devicetree.cb,gpio.h,data_twl.vbt}` over
 2. with a vendor dump: `out/bkhd-1264np_<payload>.rom` – base + vendor PCH
    straps + vendor ME + HAP (**flashable**).
 
-The first build takes 30–90 minutes (lbmk builds its cross compilers).
+The first build takes 30–90 minutes: lbmk builds its cross compilers, and
+`x2e_n150` is built twice (once to fetch the coreboot tree, once with the
+board files).
+
+lbmk naming: up to the tested commit there is one ROM per payload
+(`seabios_x2e_n150_fspgop.rom`, `grub_x2e_n150_fspgop_usqwerty.rom` ...);
+newer lbmk builds one ROM with all payloads
+(`edk2_grub_seabios_x2e_n150_fspgop.rom`), which `build.sh` saves as
+`bkhd-1264np_edk2_grub_seabios*.rom`. Only the SeaBIOS ROM of the tested
+commit has been run on hardware.
 
 ### Only the hybrid step
 
@@ -90,15 +105,22 @@ BIOS).
 
 ## Flashing
 
-- **First time (vendor firmware → Libreboot)**: write the whole chip,
-  preferably with an external programmer on the SOIC-8 chip marked SPI_ROM
-  (not the LANx_ROM chips next to the NICs):
-  `flashprog -p ch341a_spi -w bkhd-1264np_seabios.rom` (read back and compare).
-  Internal `flashprog -p internal -w …` works only if the vendor descriptor
-  leaves the regions writable.
+- **First time (vendor firmware → Libreboot)**: write the whole chip with an
+  external programmer (SOIC-8 clip) on the chip marked SPI_ROM – not the
+  LANx_ROM chips next to the NICs. Board powered off and unplugged:
+  ```
+  flashprog -p ch341a_spi -r before.rom             # once more, as a backup
+  flashprog -p ch341a_spi -w bkhd-1264np_seabios.rom
+  flashprog -p ch341a_spi -v bkhd-1264np_seabios.rom
+  ```
+  This is how the tested board was flashed. Internal flashing from the vendor
+  firmware has not been tried.
 - **Updates (Libreboot → Libreboot)**: the descriptor and ME are already in
   place, only the BIOS region changes:
   `sudo flashprog -p internal --ifd -i bios -w bkhd-1264np_seabios.rom`
+
+- **Back to the vendor firmware / unbrick**: write the vendor dump with the
+  external programmer: `flashprog -p ch341a_spi -w vendor1.rom`.
 
 ### Checking ME / HAP on the running board
 
