@@ -22,12 +22,13 @@ flash with an external programmer, Linux Mint 22.1 (Ubuntu 24.04 base) on top. T
 | HDMI (DDI B)            | works, also in the payload (FSP GOP) |
 | DP (Type-C PHY, TC1)    | **disabled**: the TC PHY never powers up with the public TWL FSP |
 | 4× I226 (RP3, RP4, RP7, RP9) | work |
-| M.2 NVMe (RP12, x1)     | enabled, untested |
+| M.2 NVMe (RP12, x1)     | works, SeaBIOS boots Linux from it (Intel SSDPEKKF256G8L) |
 | SATA ports 0, 1         | enabled |
 | eMMC controller         | enabled (pads native as in vendor firmware) |
 | Serial console          | RJ45 console port (IT8625E UART, 0x3f8); coreboot default 115200 8N1; pinout presumably Cisco-style as on the X2E – not verified |
 | HAP (ME disabled after init) | works: PCHSTRP31 bit 16; MEI 00:16.0 gone, cbmem: `HECI: CSE device 16.0 is disabled`, `ME: Version: Unavailable` (coreboot itself does not hide HECI1 in this build) |
-| USB 3, NVMe boot, audio, sleep | untested |
+| USB 3                   | xHCI SuperSpeed root hub (10 Gb/s) present; no USB 3 device tested yet |
+| Audio, sleep            | untested |
 
 What differs from the X2E N150 (`board/vs-x2e_n150.diff`):
 
