@@ -29,6 +29,8 @@ permissions:
 
 env:
   PAYLOADS: "seabios,grub"
+  # lbmk builds with one job unless told otherwise
+  XBMK_THREADS: "4"
 
 jobs:
   build:

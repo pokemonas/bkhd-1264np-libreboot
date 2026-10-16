@@ -36,6 +36,8 @@ OUT=${OUT:-$HERE/out}
 PAYLOADS=$(echo "${1:-seabios}" | tr , ' ')
 VENDOR=${2:-}
 TARGET=x2e_n150
+# lbmk compiles with a single job unless XBMK_THREADS is set
+export XBMK_THREADS=${XBMK_THREADS:-$(nproc)}
 BOARD_FILES="devicetree.cb gpio.h data_twl.vbt"
 
 say() { printf '\n== %s\n' "$*"; }
@@ -98,6 +100,16 @@ find elf bin -maxdepth 3 -name "*$TARGET*" -prune -exec rm -rf {} + 2> /dev/null
 
 # the board files were swapped into lbmk's tree; put lbmk's own back
 git -C "$SRC" checkout -q -- src/mainboard/topton/adl
+
+# newer lbmk packs bin/<target>/ into bin/libreboot-<ver>_<target>.tar.xz and
+# removes the directory: unpack it again
+if ! ls bin/$TARGET/*.rom > /dev/null 2>&1; then
+	TAR=$(ls -t bin/*_${TARGET}.tar.xz 2> /dev/null | head -n 1)
+	[ -n "$TAR" ] || { ls -R bin >&2; die "no ROMs and no tarball for $TARGET in bin/"; }
+	echo "unpacking $TAR"
+	tar xJf "$TAR" -C .
+	ls bin/$TARGET/*.rom > /dev/null 2>&1 || die "$TAR has no bin/$TARGET/*.rom"
+fi
 
 mkdir -p "$OUT"
 DONE=

@@ -130,9 +130,10 @@ lspci -nn -s 00:16.0                                   # no output: CSE hidden
 cbmem -1 | grep -iE 'ME:|HECI|CSE'                     # cbmem from coreboot util/cbmem
 ```
 
-Note: lbmk sets HAP for `x2e_n150` in PCHSTRP55 bit 16. `ifd.py hybrid`
-replaces all straps with the vendor ones (PCHSTRP55 bit 16 clear) and sets
-PCHSTRP31 bit 16 instead - that is the combination verified above.
+Note on the HAP bit position: `ifd.py hybrid` sets PCHSTRP31 bit 16 (verified
+above). Newer lbmk (26.10) sets PCHSTRP0 bit 16 for `x2e_n150` instead and
+leaves PCHSTRP31 alone; whether that also disables the CSE on these boards is
+being tested on an X2E N150.
 
 ## CI
 
